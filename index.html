@@ -259,7 +259,10 @@
 
   <div class="sectionHead">
     <h2>Fahrten</h2>
-    <button class="syncBtn" id="syncBtn">Sync</button>
+    <div style="display:flex; gap:8px;">
+      <button class="syncBtn" id="exportBtn">Excel-Export</button>
+      <button class="syncBtn" id="syncBtn">Sync</button>
+    </div>
   </div>
 
   <div id="tripList"></div>
@@ -267,6 +270,9 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
+<script src="export.js"></script>
 </body>
 </html>

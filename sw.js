@@ -1,5 +1,5 @@
 const CACHE_NAME = "fahrtenlog-v1";
-const ASSETS = ["./index.html", "./app.js", "./manifest.json"];
+const ASSETS = ["./index.html", "./config.js", "./app.js", "./export.js", "./manifest.json", "./vorlage.xlsx"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
