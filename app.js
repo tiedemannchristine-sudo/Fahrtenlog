@@ -3,7 +3,7 @@
 // ============================================================
 const CONFIG = {
   // Kostenlosen API-Key auf https://openrouteservice.org/dev/#/signup holen
-  ORS_API_KEY: "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjMyMDg4YjJhZWNkOTQ5NmU5OWY3NDc0NmJlZmE0NWJhIiwiaCI6Im11cm11cjY0In0=",
+  ORS_API_KEY: "TRAGE_HIER_DEINEN_OPENROUTESERVICE_KEY_EIN",
   // Supabase-Projekt "fahrtenlog" (Prototyp-Sync, unabhängig vom Pi)
   SYNC_ENDPOINT: "https://ninqidlagvwhfgfbhhwa.supabase.co/rest/v1/fahrten",
   SUPABASE_ANON_KEY:
@@ -59,6 +59,7 @@ const startedMeta = el("startedMeta");
 const gpsPreview = el("gpsPreview");
 const runningGpsInfo = el("runningGpsInfo");
 const kstSelect = el("kst");
+const klientInput = el("klient");
 const modeRouteBtn = el("modeRoute");
 const modeGpsBtn = el("modeGps");
 const startBtn = el("startBtn");
@@ -138,6 +139,10 @@ startBtn.addEventListener("click", async () => {
     showToast("Bitte zuerst eine Kostenstelle wählen");
     return;
   }
+  if (!klientInput.value.trim()) {
+    showToast("Bitte Klientenkürzel eingeben");
+    return;
+  }
   startBtn.disabled = true;
   gpsPreview.textContent = "GPS wird ermittelt…";
   try {
@@ -147,6 +152,7 @@ startBtn.addEventListener("click", async () => {
       startTime: now.toISOString(),
       startCoords: coords,
       kst: kstSelect.value,
+      klient: klientInput.value.trim(),
       mode,
       gpsTrack: mode === "gps" ? [{ ...coords, t: now.toISOString() }] : [],
     };
@@ -186,6 +192,7 @@ stopBtn.addEventListener("click", async () => {
     const trip = {
       id: crypto.randomUUID(),
       kst: active.kst,
+      klient: active.klient,
       mode: active.mode,
       startTime: active.startTime,
       startCoords: active.startCoords,
@@ -294,6 +301,7 @@ syncBtn.addEventListener("click", async () => {
         body: JSON.stringify({
           id: trip.id,
           kst: trip.kst,
+          klient: trip.klient,
           mode: trip.mode,
           start_time: trip.startTime,
           start_coords: trip.startCoords,
@@ -326,13 +334,14 @@ function renderIdle() {
   idleView.style.display = "block";
   runningView.style.display = "none";
   kstSelect.value = "";
+  klientInput.value = "";
 }
 function renderRunning() {
   idleView.style.display = "none";
   runningView.style.display = "block";
   const d = new Date(active.startTime);
   startedClock.textContent = fmtTime(d).slice(0, 5);
-  startedMeta.textContent = `${fmtDate(d)} · Kostenstelle: ${active.kst} · ${active.mode === "gps" ? "GPS-Tracking" : "Autoroute"}`;
+  startedMeta.textContent = `${fmtDate(d)} · Kostenstelle: ${active.kst} · Klient: ${active.klient} · ${active.mode === "gps" ? "GPS-Tracking" : "Autoroute"}`;
   runningGpsInfo.textContent = active.mode === "gps" ? `${active.gpsTrack.length} GPS-Punkte erfasst` : "Route wird beim Stopp berechnet";
 }
 
@@ -364,7 +373,7 @@ function renderTrips() {
           </div>
           <div class="trip-meta">
             <b>${fmtDate(start)}</b> · ${fmtTime(start).slice(0, 5)} – ${fmtTime(stop).slice(0, 5)}<br>
-            Kostenstelle: <b>${t.kst}</b> · ${t.mode === "gps" ? "GPS-Tracking" : "Autoroute"}${t.km !== null ? ` · ${kmSourceLabel(t)}` : ""}
+            Kostenstelle: <b>${t.kst}</b> · Klient: <b>${t.klient || "–"}</b> · ${t.mode === "gps" ? "GPS-Tracking" : "Autoroute"}${t.km !== null ? ` · ${kmSourceLabel(t)}` : ""}
           </div>
         </div>`;
     })
