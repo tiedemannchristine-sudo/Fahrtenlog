@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F5257">
+<title>Fahrtenlog</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg: #EEF2F1;
+    --paper: #FBFAF7;
+    --ink: #16262A;
+    --ink-soft: #5B6E70;
+    --teal: #0F5257;
+    --teal-deep: #0A3A3D;
+    --amber: #C97A1A;
+    --green: #3F7D5C;
+    --line: #D8DEDC;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink); font-family:var(--sans); min-height:100vh;}
+  body{
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .app{
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px 100px;
+    min-height: 100vh;
+  }
+  header.top{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 22px;
+  }
+  header.top h1{
+    font-size: 20px; letter-spacing: -0.01em; margin:0; font-weight: 700;
+  }
+  header.top .status{
+    font-family: var(--mono); font-size: 11px; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+
+  /* Recorder card */
+  .recorder{
+    background: linear-gradient(155deg, var(--teal-deep), var(--teal));
+    border-radius: 20px;
+    padding: 24px 20px 20px;
+    color: #EAF3F1;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 28px -14px rgba(10,58,61,0.55);
+  }
+  .recorder::after{
+    content:"";
+    position:absolute; right:-40px; top:-40px; width:160px; height:160px;
+    border-radius:50%;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.08), transparent 70%);
+  }
+  .recorder .label{
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    opacity: 0.75; margin-bottom: 4px;
+  }
+  .recorder .clock{
+    font-family: var(--mono); font-size: 34px; font-weight: 500; letter-spacing: -0.02em;
+    margin-bottom: 2px;
+  }
+  .recorder .datestr{
+    font-family: var(--mono); font-size: 12px; opacity: 0.7; margin-bottom: 18px;
+  }
+
+  .field{
+    margin-bottom: 14px;
+  }
+  .field label{
+    display:block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    opacity: 0.75; margin-bottom: 6px; font-family: var(--mono);
+  }
+  select.kst{
+    width: 100%;
+    appearance: none;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.28);
+    color: #fff;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-family: var(--sans);
+  }
+  select.kst option{ color:#111; }
+
+  .modeToggle{
+    display:flex; gap:8px; margin-bottom: 18px;
+  }
+  .modeToggle button{
+    flex:1;
+    padding: 9px 8px;
+    border-radius: 9px;
+    border: 1px solid rgba(255,255,255,0.28);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.75);
+    font-size: 12.5px;
+    font-family: var(--sans);
+    cursor: pointer;
+  }
+  .modeToggle button.active{
+    background: rgba(255,255,255,0.92);
+    color: var(--teal-deep);
+    font-weight: 600;
+    border-color: transparent;
+  }
+
+  .gpsline{
+    font-family: var(--mono); font-size: 11px; opacity: 0.65; margin-bottom: 16px; min-height: 14px;
+  }
+
+  button.mainBtn{
+    width: 100%;
+    padding: 17px;
+    border-radius: 13px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: transform 0.08s ease;
+  }
+  button.mainBtn:active{ transform: scale(0.985); }
+  button.mainBtn.start{ background: #EAF3F1; color: var(--teal-deep); }
+  button.mainBtn.stop{ background: #E8543F; color: #fff; }
+
+  .running-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family: var(--mono); font-size: 11px; color: #FFD9A0;
+    margin-bottom: 10px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:#FF6B57; animation: pulse 1.4s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  /* Trip list */
+  .sectionHead{
+    display:flex; justify-content:space-between; align-items:center;
+    margin: 30px 0 12px;
+  }
+  .sectionHead h2{
+    font-size: 13px; text-transform:uppercase; letter-spacing:0.08em; color: var(--ink-soft);
+    margin:0; font-weight:600;
+  }
+  .syncBtn{
+    font-family: var(--mono); font-size: 11px; color: var(--teal);
+    background: none; border: 1px solid var(--teal); border-radius: 20px;
+    padding: 5px 12px; cursor:pointer;
+  }
+  .syncBtn:disabled{ opacity:0.4; border-color:var(--ink-soft); color:var(--ink-soft); }
+
+  .trip{
+    background: var(--paper);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    position: relative;
+  }
+  .trip::before{
+    content:"";
+    position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:2px;
+    background: var(--amber);
+  }
+  .trip.synced::before{ background: var(--green); }
+  .trip-top{
+    display:flex; justify-content:space-between; align-items:flex-start;
+    margin-bottom: 8px;
+  }
+  .trip-km{
+    font-family: var(--mono); font-size: 22px; font-weight:600; color: var(--ink);
+  }
+  .trip-km span{ font-size: 12px; color: var(--ink-soft); font-weight: 400; }
+  .trip-badge{
+    font-family: var(--mono); font-size: 9.5px; text-transform:uppercase; letter-spacing:0.06em;
+    padding: 3px 8px; border-radius: 20px; background: #FBEFDD; color: var(--amber);
+    white-space: nowrap;
+  }
+  .trip.synced .trip-badge{ background:#E4F1E9; color: var(--green); }
+  .trip-meta{
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); line-height:1.7;
+  }
+  .trip-meta b{ color: var(--ink); font-weight: 600; }
+
+  .empty{
+    text-align:center; color: var(--ink-soft); font-size: 13px; padding: 30px 10px;
+    border: 1px dashed var(--line); border-radius: 14px;
+  }
+
+  .toast{
+    position: fixed; left:50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--ink); color:#fff; padding: 10px 18px; border-radius: 10px;
+    font-size: 13px; opacity:0; pointer-events:none; transition: opacity 0.25s ease;
+    max-width: 90%; text-align:center;
+  }
+  .toast.show{ opacity: 1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Fahrtenlog</h1>
+    <div class="status" id="onlineStatus">—</div>
+  </header>
+
+  <section class="recorder" id="recorder">
+    <div id="idleView">
+      <div class="label">Bereit</div>
+      <div class="clock" id="liveClock">--:--</div>
+      <div class="datestr" id="liveDate">–</div>
+
+      <div class="field">
+        <label for="kst">Kostenstelle</label>
+        <select class="kst" id="kst">
+          <option value="">Kostenstelle wählen…</option>
+          <option value="PLATZHALTER-1">Kostenstelle (Platzhalter 1)</option>
+          <option value="PLATZHALTER-2">Kostenstelle (Platzhalter 2)</option>
+          <option value="PLATZHALTER-3">Kostenstelle (Platzhalter 3)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Streckenermittlung</label>
+        <div class="modeToggle">
+          <button type="button" id="modeRoute" class="active">Autoroute berechnen</button>
+          <button type="button" id="modeGps">GPS-Tracking</button>
+        </div>
+      </div>
+
+      <div class="gpsline" id="gpsPreview">GPS wird beim Start abgerufen</div>
+      <button class="mainBtn start" id="startBtn">Fahrt starten</button>
+    </div>
+
+    <div id="runningView" style="display:none;">
+      <div class="running-pill"><span class="dot"></span> Fahrt läuft</div>
+      <div class="label">Gestartet</div>
+      <div class="clock" id="startedClock">--:--</div>
+      <div class="datestr" id="startedMeta">–</div>
+      <div class="gpsline" id="runningGpsInfo"></div>
+      <button class="mainBtn stop" id="stopBtn">Fahrt beenden</button>
+    </div>
+  </section>
+
+  <div class="sectionHead">
+    <h2>Fahrten</h2>
+    <button class="syncBtn" id="syncBtn">Sync</button>
+  </div>
+
+  <div id="tripList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
