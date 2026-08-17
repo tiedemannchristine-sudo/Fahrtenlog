@@ -3,7 +3,7 @@
 // ============================================================
 const CONFIG = {
   // Kostenlosen API-Key auf https://openrouteservice.org/dev/#/signup holen
-  ORS_API_KEY: "TRAGE_HIER_DEINEN_OPENROUTESERVICE_KEY_EIN",
+  ORS_API_KEY: "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjMyMDg4YjJhZWNkOTQ5NmU5OWY3NDc0NmJlZmE0NWJhIiwiaCI6Im11cm11cjY0In0=",
   // Supabase-Projekt "fahrtenlog" (Prototyp-Sync, unabhängig vom Pi)
   SYNC_ENDPOINT: "https://ninqidlagvwhfgfbhhwa.supabase.co/rest/v1/fahrten",
   SUPABASE_ANON_KEY:
