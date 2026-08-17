@@ -4,8 +4,10 @@
 const CONFIG = {
   // Kostenlosen API-Key auf https://openrouteservice.org/dev/#/signup holen
   ORS_API_KEY: "TRAGE_HIER_DEINEN_OPENROUTESERVICE_KEY_EIN",
-  // Sync-Ziel: fürs Prototyping z.B. Supabase-URL, später Server der Firma
-  SYNC_ENDPOINT: null, // z.B. "https://xxxx.supabase.co/rest/v1/fahrten"
+  // Supabase-Projekt "fahrtenlog" (Prototyp-Sync, unabhängig vom Pi)
+  SYNC_ENDPOINT: "https://ninqidlagvwhfgfbhhwa.supabase.co/rest/v1/fahrten",
+  SUPABASE_ANON_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pbnFpZGxhZ3Z3aGZnZmJoaHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NDExNjksImV4cCI6MjEwMjUxNzE2OX0.mI6fc10W39UJVV5TAWCym4ZSS5RDM36RhEmv5WzHA4c",
 };
 
 // ============================================================
@@ -281,11 +283,28 @@ syncBtn.addEventListener("click", async () => {
   syncBtn.textContent = "Sync läuft…";
   try {
     for (const trip of open) {
-      await fetch(CONFIG.SYNC_ENDPOINT, {
+      const res = await fetch(CONFIG.SYNC_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(trip),
+        headers: {
+          "Content-Type": "application/json",
+          apikey: CONFIG.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          id: trip.id,
+          kst: trip.kst,
+          mode: trip.mode,
+          start_time: trip.startTime,
+          start_coords: trip.startCoords,
+          stop_time: trip.stopTime,
+          stop_coords: trip.stopCoords,
+          gps_track: trip.gpsTrack,
+          km: trip.km,
+          km_source: trip.kmSource,
+        }),
       });
+      if (!res.ok) throw new Error(`Supabase-Fehler: ${res.status}`);
       trip.synced = true;
     }
     saveTrips(trips);
