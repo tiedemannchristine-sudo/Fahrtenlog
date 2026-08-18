@@ -14,4 +14,9 @@ const CONFIG = {
   EXCEL_LAST_DATA_ROW: 29,
   EXCEL_EINSATZBEREICH_ROW: 4,
   EXCEL_EINSATZBEREICH_COLS: ["K", "L", "M", "N"],
+
+  // Parkscheine
+  STORAGE_BUCKET_URL: "https://ninqidlagvwhfgfbhhwa.supabase.co/storage/v1/object",
+  STORAGE_PUBLIC_URL: "https://ninqidlagvwhfgfbhhwa.supabase.co/storage/v1/object/public",
+  PARKSCHEINE_ENDPOINT: "https://ninqidlagvwhfgfbhhwa.supabase.co/rest/v1/parkscheine",
 };

@@ -52,16 +52,29 @@ function fmtDatum(isoString) {
 }
 
 exportBtn.addEventListener("click", async () => {
+  const gemerkterName = localStorage.getItem("fahrtentracker_mitarbeiter_v1") || "";
+  const mitarbeiter = window.prompt(
+    "Für welche Mitarbeiter:in soll exportiert werden? (Name muss exakt so geschrieben sein wie beim Start der Fahrten)",
+    gemerkterName
+  );
+  if (mitarbeiter === null) return; // abgebrochen
+  const mitarbeiterTrim = mitarbeiter.trim();
+  if (!mitarbeiterTrim) {
+    showToast("Kein Name eingegeben – Export abgebrochen");
+    return;
+  }
+
   exportBtn.disabled = true;
   syncBtn.disabled = true;
   try {
     exportBtn.textContent = "Lade Fahrten…";
     const allTrips = await fetchAllTripsFromSupabase();
-    const usable = allTrips.filter((t) => t.km !== null && t.km !== undefined);
-    const skipped = allTrips.length - usable.length;
+    const forPerson = allTrips.filter((t) => (t.mitarbeiter || "").trim() === mitarbeiterTrim);
+    const usable = forPerson.filter((t) => t.km !== null && t.km !== undefined);
+    const skipped = forPerson.length - usable.length;
 
     if (usable.length === 0) {
-      showToast("Keine Fahrten mit berechneten km gefunden");
+      showToast(`Keine Fahrten mit km für "${mitarbeiterTrim}" gefunden`);
       return;
     }
 
@@ -88,6 +101,7 @@ exportBtn.addEventListener("click", async () => {
     await workbook.xlsx.load(templateBuffer);
     const ws = workbook.getWorksheet(CONFIG.EXCEL_SHEET_NAME);
     if (!ws) throw new Error(`Tabellenblatt "${CONFIG.EXCEL_SHEET_NAME}" nicht gefunden`);
+    ws.getCell("B1").value = mitarbeiterTrim;
 
     const areaToCol = {};
     areas.forEach((area, i) => {
@@ -118,7 +132,7 @@ exportBtn.addEventListener("click", async () => {
     });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `fahrtkostenabrechnung_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.download = `fahrtkostenabrechnung_${mitarbeiterTrim.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
     link.click();
     URL.revokeObjectURL(link.href);
 

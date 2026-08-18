@@ -53,6 +53,9 @@ const gpsPreview = el("gpsPreview");
 const runningGpsInfo = el("runningGpsInfo");
 const kstSelect = el("kst");
 const klientInput = el("klient");
+const mitarbeiterInput = el("mitarbeiter");
+const MITARBEITER_KEY = "fahrtentracker_mitarbeiter_v1";
+mitarbeiterInput.value = localStorage.getItem(MITARBEITER_KEY) || "";
 const modeRouteBtn = el("modeRoute");
 const modeGpsBtn = el("modeGps");
 const startBtn = el("startBtn");
@@ -128,6 +131,10 @@ setMode(mode);
 // START / STOP
 // ============================================================
 startBtn.addEventListener("click", async () => {
+  if (!mitarbeiterInput.value.trim()) {
+    showToast("Bitte deinen Namen eingeben");
+    return;
+  }
   if (!kstSelect.value) {
     showToast("Bitte zuerst eine Kostenstelle wählen");
     return;
@@ -146,9 +153,11 @@ startBtn.addEventListener("click", async () => {
       startCoords: coords,
       kst: kstSelect.value,
       klient: klientInput.value.trim(),
+      mitarbeiter: mitarbeiterInput.value.trim(),
       mode,
       gpsTrack: mode === "gps" ? [{ ...coords, t: now.toISOString() }] : [],
     };
+    localStorage.setItem(MITARBEITER_KEY, active.mitarbeiter);
     saveActive(active);
 
     if (mode === "gps" && navigator.geolocation) {
@@ -186,6 +195,7 @@ stopBtn.addEventListener("click", async () => {
       id: crypto.randomUUID(),
       kst: active.kst,
       klient: active.klient,
+      mitarbeiter: active.mitarbeiter,
       mode: active.mode,
       startTime: active.startTime,
       startCoords: active.startCoords,
@@ -295,6 +305,7 @@ syncBtn.addEventListener("click", async () => {
           id: trip.id,
           kst: trip.kst,
           klient: trip.klient,
+          mitarbeiter: trip.mitarbeiter,
           mode: trip.mode,
           start_time: trip.startTime,
           start_coords: trip.startCoords,
@@ -334,7 +345,7 @@ function renderRunning() {
   runningView.style.display = "block";
   const d = new Date(active.startTime);
   startedClock.textContent = fmtTime(d).slice(0, 5);
-  startedMeta.textContent = `${fmtDate(d)} · Kostenstelle: ${active.kst} · Klient: ${active.klient} · ${active.mode === "gps" ? "GPS-Tracking" : "Autoroute"}`;
+  startedMeta.textContent = `${fmtDate(d)} · ${active.mitarbeiter} · Kostenstelle: ${active.kst} · Klient: ${active.klient} · ${active.mode === "gps" ? "GPS-Tracking" : "Autoroute"}`;
   runningGpsInfo.textContent = active.mode === "gps" ? `${active.gpsTrack.length} GPS-Punkte erfasst` : "Route wird beim Stopp berechnet";
 }
 

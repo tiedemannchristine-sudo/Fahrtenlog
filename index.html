@@ -218,6 +218,16 @@
       <div class="datestr" id="liveDate">–</div>
 
       <div class="field">
+        <label for="mitarbeiter">Mitarbeiter:in</label>
+        <input type="text" class="kst" id="mitarbeiter" placeholder="Vor- und Nachname" maxlength="60" autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="mitarbeiter">Mitarbeiter:in</label>
+        <input type="text" class="kst" id="mitarbeiter" placeholder="Dein Name" maxlength="40" autocomplete="off">
+      </div>
+
+      <div class="field">
         <label for="kst">Kostenstelle</label>
         <select class="kst" id="kst">
           <option value="">Kostenstelle wählen…</option>
@@ -257,6 +267,21 @@
     </div>
   </section>
 
+  <div class="sectionHead" style="margin-top:26px;">
+    <h2>Parkschein</h2>
+    <button class="syncBtn" id="parkDownloadBtn">Fotos herunterladen</button>
+  </div>
+  <div class="trip" style="text-align:center; padding: 18px;">
+    <input type="file" id="parkFile" accept="image/*" capture="environment" style="display:none;">
+    <button class="syncBtn" id="parkBtn" style="width:100%; padding:11px;">📷 Parkschein fotografieren</button>
+    <div id="parkPreviewWrap" style="display:none; margin-top:12px;">
+      <img id="parkPreview" style="max-width:100%; border-radius:10px; margin-bottom:10px;">
+      <button class="mainBtn start" id="parkSaveBtn" style="margin-bottom:8px;">Speichern</button>
+      <button class="syncBtn" id="parkCancelBtn" style="width:100%;">Abbrechen</button>
+    </div>
+  </div>
+  <div id="parkList"></div>
+
   <div class="sectionHead">
     <h2>Fahrten</h2>
     <div style="display:flex; gap:8px;">
@@ -270,9 +295,11 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="parkschein.js"></script>
 <script src="export.js"></script>
 </body>
 </html>
