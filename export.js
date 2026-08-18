@@ -64,17 +64,33 @@ exportBtn.addEventListener("click", async () => {
     return;
   }
 
+  const heute = new Date();
+  const monatDefault = `${String(heute.getMonth() + 1).padStart(2, "0")}.${heute.getFullYear()}`;
+  const monatInput = window.prompt("Für welchen Monat? (Format MM.JJJJ)", monatDefault);
+  if (monatInput === null) return; // abgebrochen
+  const match = monatInput.trim().match(/^(\d{1,2})\.(\d{4})$/);
+  if (!match) {
+    showToast("Ungültiges Format – bitte MM.JJJJ eingeben, z.B. 08.2026");
+    return;
+  }
+  const monat = parseInt(match[1], 10); // 1-12
+  const jahr = parseInt(match[2], 10);
+
   exportBtn.disabled = true;
   syncBtn.disabled = true;
   try {
     exportBtn.textContent = "Lade Fahrten…";
     const allTrips = await fetchAllTripsFromSupabase();
-    const forPerson = allTrips.filter((t) => (t.mitarbeiter || "").trim() === mitarbeiterTrim);
+    const forPerson = allTrips.filter((t) => {
+      if ((t.mitarbeiter || "").trim() !== mitarbeiterTrim) return false;
+      const d = new Date(t.start_time);
+      return d.getMonth() + 1 === monat && d.getFullYear() === jahr;
+    });
     const usable = forPerson.filter((t) => t.km !== null && t.km !== undefined);
     const skipped = forPerson.length - usable.length;
 
     if (usable.length === 0) {
-      showToast(`Keine Fahrten mit km für "${mitarbeiterTrim}" gefunden`);
+      showToast(`Keine Fahrten mit km für "${mitarbeiterTrim}" im ${monatInput.trim()} gefunden`);
       return;
     }
 
@@ -132,7 +148,7 @@ exportBtn.addEventListener("click", async () => {
     });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `fahrtkostenabrechnung_${mitarbeiterTrim.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.download = `fahrtkostenabrechnung_${mitarbeiterTrim.replace(/\s+/g, "_")}_${jahr}-${String(monat).padStart(2, "0")}.xlsx`;
     link.click();
     URL.revokeObjectURL(link.href);
 
