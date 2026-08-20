@@ -88,15 +88,70 @@ function haversineKm(a, b) {
   return R * 2 * Math.asin(Math.sqrt(h));
 }
 
-function getPosition() {
+function getPosition(timeout = 15000) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("Kein GPS verfügbar"));
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout, maximumAge: 0 }
     );
   });
+}
+
+// Wie getPosition, gibt aber null statt Fehler zurück (z.B. kein Signal in Tiefgarage)
+let lastGeoError = null;
+async function getPositionSafe(timeout = 10000) {
+  try {
+    lastGeoError = null;
+    return await getPosition(timeout);
+  } catch (err) {
+    lastGeoError = err;
+    console.warn("GPS nicht verfügbar:", err);
+    return null;
+  }
+}
+
+function geoErrorMessage() {
+  const err = lastGeoError;
+  if (!err) return "Kein GPS-Signal – Standort wird nachgeholt";
+  switch (err.code) {
+    case 1: // PERMISSION_DENIED
+      return "Standortzugriff blockiert – bitte in den Handy-Einstellungen für den Browser erlauben";
+    case 2: // POSITION_UNAVAILABLE
+      return "Kein GPS-Empfang – bitte prüfen, ob Standort/GPS am Handy eingeschaltet ist";
+    case 3: // TIMEOUT
+      return "GPS-Signal kam nicht rechtzeitig (schwacher Empfang) – wird nachgeholt";
+    default:
+      return "Kein GPS-Signal – Standort wird nachgeholt";
+  }
+}
+
+// Versucht im Hintergrund weiter, einen Standort nachzutragen, falls beim
+// Start/Stopp keiner verfügbar war (z.B. Tiefgarage) – füllt ihn nach, sobald
+// wieder Empfang da ist.
+function tryFillCoordsLater(target, key, maxAttempts = 6, intervalMs = 15000) {
+  let attempts = 0;
+  const interval = setInterval(async () => {
+    attempts++;
+    const coords = await getPositionSafe(8000);
+    if (coords) {
+      target[key] = coords;
+      target[key + "FilledLater"] = true;
+      if (target === active) saveActive(active);
+      else {
+        const idx = trips.findIndex((t) => t.id === target.id);
+        if (idx !== -1) {
+          trips[idx] = target;
+          saveTrips(trips);
+          renderTrips();
+        }
+      }
+      clearInterval(interval);
+    } else if (attempts >= maxAttempts) {
+      clearInterval(interval);
+    }
+  }, intervalMs);
 }
 
 function updateOnlineStatus() {
@@ -146,25 +201,31 @@ startBtn.addEventListener("click", async () => {
   startBtn.disabled = true;
   gpsPreview.textContent = "GPS wird ermittelt…";
   try {
-    const coords = await getPosition();
+    const coords = await getPositionSafe(10000);
     const now = new Date();
     active = {
       startTime: now.toISOString(),
-      startCoords: coords,
+      startCoords: coords, // kann null sein, z.B. in der Tiefgarage
       kst: kstSelect.value,
       klient: klientInput.value.trim(),
       mitarbeiter: mitarbeiterInput.value.trim(),
       mode,
-      gpsTrack: mode === "gps" ? [{ ...coords, t: now.toISOString() }] : [],
+      gpsTrack: mode === "gps" && coords ? [{ ...coords, t: now.toISOString() }] : [],
     };
     localStorage.setItem(MITARBEITER_KEY, active.mitarbeiter);
     saveActive(active);
+
+    if (!coords) {
+      showToast(geoErrorMessage());
+      tryFillCoordsLater(active, "startCoords");
+    }
 
     if (mode === "gps" && navigator.geolocation) {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const p = { lat: pos.coords.latitude, lon: pos.coords.longitude, t: new Date().toISOString() };
           active.gpsTrack.push(p);
+          if (!active.startCoords) active.startCoords = { lat: p.lat, lon: p.lon };
           saveActive(active);
           runningGpsInfo.textContent = `${active.gpsTrack.length} GPS-Punkte erfasst`;
         },
@@ -174,7 +235,7 @@ startBtn.addEventListener("click", async () => {
     }
     renderRunning();
   } catch (err) {
-    showToast("GPS-Standort konnte nicht ermittelt werden");
+    showToast("Fahrt konnte nicht gestartet werden");
     console.error(err);
   } finally {
     startBtn.disabled = false;
@@ -188,7 +249,7 @@ stopBtn.addEventListener("click", async () => {
       navigator.geolocation.clearWatch(watchId);
       watchId = null;
     }
-    const coords = await getPosition();
+    const coords = await getPositionSafe(10000);
     const now = new Date();
 
     const trip = {
@@ -207,15 +268,31 @@ stopBtn.addEventListener("click", async () => {
       synced: false,
     };
 
+    if (!coords) {
+      showToast(geoErrorMessage());
+      tryFillCoordsLater(trip, "stopCoords");
+    }
+
+    let gpsTrackKm = null;
     if (trip.mode === "gps" && trip.gpsTrack.length > 1) {
       let sum = 0;
       for (let i = 1; i < trip.gpsTrack.length; i++) {
         sum += haversineKm(trip.gpsTrack[i - 1], trip.gpsTrack[i]);
       }
-      trip.km = Math.round(sum * 10) / 10;
+      gpsTrackKm = Math.round(sum * 10) / 10;
+    }
+
+    // GPS-Tracking lieferte eine plausible Strecke -> übernehmen
+    if (gpsTrackKm !== null && gpsTrackKm >= 0.3) {
+      trip.km = gpsTrackKm;
       trip.kmSource = "gps-track";
-    } else {
+    } else if (trip.startCoords && trip.stopCoords) {
+      // Kein/zu kurzer Track (z.B. App war zwischenzeitlich im Hintergrund) ->
+      // Fallback auf Autoroute aus Start-/Zielkoordinate
       trip.kmSource = "route-pending";
+    } else {
+      // Weder Track noch beide Koordinaten vorhanden -> manuell nachtragen
+      trip.kmSource = "missing-coords";
     }
 
     trips.unshift(trip);
@@ -229,7 +306,7 @@ stopBtn.addEventListener("click", async () => {
       resolveRouteKm(trip);
     }
   } catch (err) {
-    showToast("GPS-Standort beim Stopp konnte nicht ermittelt werden");
+    showToast("Fahrt konnte nicht beendet werden");
     console.error(err);
   } finally {
     stopBtn.disabled = false;
@@ -355,6 +432,8 @@ function kmSourceLabel(t) {
     case "autoroute": return "Autoroute";
     case "route-pending": return "Route wird berechnet…";
     case "route-failed": return "Route fehlgeschlagen";
+    case "missing-coords": return "Kein GPS – km fehlen";
+    case "manuell": return "manuell eingetragen";
     default: return "–";
   }
 }
@@ -369,6 +448,14 @@ function renderTrips() {
       const start = new Date(t.startTime);
       const stop = new Date(t.stopTime);
       const kmDisplay = t.km !== null ? `${t.km.toFixed(1)}<span> km</span>` : `<span>${kmSourceLabel(t)}</span>`;
+      const needsManual = t.km === null && ["missing-coords", "route-failed"].includes(t.kmSource);
+      const manualRow = needsManual
+        ? `<div style="display:flex; gap:8px; margin-top:8px;">
+             <input type="number" step="0.1" min="0" placeholder="km eintragen" id="manual-${t.id}"
+               style="flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono); font-size:13px;">
+             <button class="syncBtn" onclick="saveManualKm('${t.id}')">Speichern</button>
+           </div>`
+        : "";
       return `
         <div class="trip ${t.synced ? "synced" : ""}">
           <div class="trip-top">
@@ -379,9 +466,44 @@ function renderTrips() {
             <b>${fmtDate(start)}</b> · ${fmtTime(start).slice(0, 5)} – ${fmtTime(stop).slice(0, 5)}<br>
             Kostenstelle: <b>${t.kst}</b> · Klient: <b>${t.klient || "–"}</b> · ${t.mode === "gps" ? "GPS-Tracking" : "Autoroute"}${t.km !== null ? ` · ${kmSourceLabel(t)}` : ""}
           </div>
+          ${manualRow}
         </div>`;
     })
     .join("");
+}
+
+async function saveManualKm(tripId) {
+  const input = document.getElementById(`manual-${tripId}`);
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0) {
+    showToast("Bitte gültige km eingeben");
+    return;
+  }
+  const idx = trips.findIndex((t) => t.id === tripId);
+  if (idx === -1) return;
+  trips[idx].km = Math.round(val * 10) / 10;
+  trips[idx].kmSource = "manuell";
+  saveTrips(trips);
+  renderTrips();
+
+  // Falls die Fahrt schon synchronisiert war, Supabase nachträglich aktualisieren
+  if (trips[idx].synced) {
+    try {
+      await fetch(`${CONFIG.SYNC_ENDPOINT}?id=eq.${tripId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: CONFIG.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ km: trips[idx].km, km_source: "manuell" }),
+      });
+    } catch (err) {
+      console.error("Nachträgliches Update fehlgeschlagen:", err);
+    }
+  }
+  showToast("km gespeichert");
 }
 
 // ============================================================
