@@ -316,6 +316,16 @@ stopBtn.addEventListener("click", async () => {
 // ============================================================
 // AUTOROUTE (OpenRouteService)
 // ============================================================
+// Adresse -> Koordinaten (Gegenstück zum Reverse-Geocoding im Export)
+async function forwardGeocode(address) {
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(address)}&limit=1`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Geocoding-Fehler: ${res.status}`);
+  const data = await res.json();
+  if (!data.length) throw new Error("Adresse nicht gefunden");
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+}
+
 async function resolveRouteKm(trip) {
   if (!CONFIG.ORS_API_KEY || CONFIG.ORS_API_KEY.startsWith("TRAGE_HIER")) {
     showToast("ORS-API-Key fehlt – km müssen manuell nachgetragen werden");
@@ -449,11 +459,23 @@ function renderTrips() {
       const stop = new Date(t.stopTime);
       const kmDisplay = t.km !== null ? `${t.km.toFixed(1)}<span> km</span>` : `<span>${kmSourceLabel(t)}</span>`;
       const needsManual = t.km === null && ["missing-coords", "route-failed"].includes(t.kmSource);
+      const needStartAddr = needsManual && !t.startCoords;
+      const needStopAddr = needsManual && !t.stopCoords;
       const manualRow = needsManual
-        ? `<div style="display:flex; gap:8px; margin-top:8px;">
-             <input type="number" step="0.1" min="0" placeholder="km eintragen" id="manual-${t.id}"
-               style="flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono); font-size:13px;">
-             <button class="syncBtn" onclick="saveManualKm('${t.id}')">Speichern</button>
+        ? `<div style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+             ${needStartAddr ? `<input type="text" placeholder="Start-Adresse (Straße, Ort)" id="startaddr-${t.id}"
+               style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px;">` : ""}
+             ${needStopAddr ? `<input type="text" placeholder="Ziel-Adresse (Straße, Ort)" id="stopaddr-${t.id}"
+               style="padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-size:13px;">` : ""}
+             <button class="syncBtn" onclick="resolveManualAddress('${t.id}')">km aus Adresse berechnen</button>
+             <details style="font-size:11px; color:var(--ink-soft);">
+               <summary style="cursor:pointer;">…oder km direkt eingeben</summary>
+               <div style="display:flex; gap:8px; margin-top:6px;">
+                 <input type="number" step="0.1" min="0" placeholder="km eintragen" id="manual-${t.id}"
+                   style="flex:1; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono); font-size:13px;">
+                 <button class="syncBtn" onclick="saveManualKm('${t.id}')">Speichern</button>
+               </div>
+             </details>
            </div>`
         : "";
       return `
@@ -470,6 +492,63 @@ function renderTrips() {
         </div>`;
     })
     .join("");
+}
+
+async function resolveManualAddress(tripId) {
+  const idx = trips.findIndex((t) => t.id === tripId);
+  if (idx === -1) return;
+  const trip = trips[idx];
+
+  const startInput = document.getElementById(`startaddr-${tripId}`);
+  const stopInput = document.getElementById(`stopaddr-${tripId}`);
+
+  try {
+    if (startInput) {
+      if (!startInput.value.trim()) {
+        showToast("Bitte Start-Adresse eingeben");
+        return;
+      }
+      showToast("Suche Start-Adresse…");
+      trip.startCoords = await forwardGeocode(startInput.value.trim());
+    }
+    if (stopInput) {
+      if (!stopInput.value.trim()) {
+        showToast("Bitte Ziel-Adresse eingeben");
+        return;
+      }
+      showToast("Suche Ziel-Adresse…");
+      trip.stopCoords = await forwardGeocode(stopInput.value.trim());
+    }
+  } catch (err) {
+    showToast(`Adresse nicht gefunden: ${err.message}`);
+    return;
+  }
+
+  trip.kmSource = "route-pending";
+  trips[idx] = trip;
+  saveTrips(trips);
+  renderTrips();
+  showToast("Berechne Route…");
+  await resolveRouteKm(trip);
+
+  // Falls die Fahrt schon synchronisiert war, Supabase nachträglich aktualisieren
+  const updated = trips.find((t) => t.id === tripId);
+  if (updated && updated.synced && updated.km !== null) {
+    try {
+      await fetch(`${CONFIG.SYNC_ENDPOINT}?id=eq.${tripId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: CONFIG.SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ km: updated.km, km_source: updated.kmSource }),
+      });
+    } catch (err) {
+      console.error("Nachträgliches Update fehlgeschlagen:", err);
+    }
+  }
 }
 
 async function saveManualKm(tripId) {

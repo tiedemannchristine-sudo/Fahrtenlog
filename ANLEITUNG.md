@@ -9,6 +9,8 @@
 
 ## Eine Fahrt aufzeichnen
 
+**Wichtig: Vor dem Start Standort/GPS am Handy einschalten** (Android: Schnelleinstellungen → Standort; iPhone: Einstellungen → Datenschutz → Ortungsdienste). Ohne GPS kann die App zwar trotzdem starten, findet den Standort dann aber erst nach, was zu ungenauen km führen kann.
+
 1. App öffnen
 2. **Kostenstelle** auswählen (dein Einsatzbereich, z. B. AUW, SPFH, …)
 3. **Klientenkürzel** eintragen (z. B. "Chr. Il.")
